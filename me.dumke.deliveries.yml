@@ -1,6 +1,6 @@
 app-id: me.dumke.deliveries
 runtime: org.gnome.Platform
-runtime-version: '46'
+runtime-version: '49'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -31,7 +31,7 @@ modules:
         path: cargo-config
       - type: git
         url: https://github.com/danst0/deliveries.git
-        tag: v0.2.9
+        tag: v0.3.0
       - type: shell
         commands:
           - mkdir -p .cargo
