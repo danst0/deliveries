@@ -7,8 +7,12 @@
   <summary>DHL Shipment Tracker</summary>
   <description>
     <p>
-      A simple GTK4 application to track DHL shipments. It automatically refreshes
+      A simple GTK4 application to track shipments. It automatically refreshes
       tracking status and provides a clean overview of your deliveries.
+    </p>
+    <p>
+      Note: Currently, the app only supports DHL Germany. Support for additional
+      carriers will be added in future updates.
     </p>
   </description>
   <launchable type="desktop-id">com.example.deliveries.desktop</launchable>
