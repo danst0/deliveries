@@ -338,7 +338,7 @@ fn show_detail_window(state: &SharedState, code: String, listbox_main: &ListBox,
     code_label.add_css_class("title-4");
 
     let name_entry = Entry::builder()
-        .placeholder_text("custom name")
+        .placeholder_text("Custom Name")
         .text(item.name.as_deref().unwrap_or(""))
         .build();
 
