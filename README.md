@@ -11,7 +11,13 @@ A small Rust + GTK4 desktop app to check DHL shipment status in Germany by scrap
 ```bash
 cargo run
 ```
-Then enter a DHL tracking number and press "Check".
+Then add DHL tracking numbers and use the refresh icon to update all of them.
+
+## Features
+- Track multiple DHL numbers in one list
+- Manual refresh per item or for all numbers via the refresh icon
+- Automatic refresh every hour
+- Archive entries to hide them and stop updates
 
 ## Notes
 - This uses HTML scraping of `https://nolp.dhl.de/nextt-online-public/report?lang=en&id=<tracking>` and may break if DHL changes markup.
