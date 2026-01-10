@@ -47,6 +47,9 @@ if [[ "${RUN_APP}" == "1" ]]; then
 	flatpak-builder --run "${BUILD_DIR}" "${MANIFEST}" "${CMD}"
 fi
 
+
+python3 flatpak-cargo-generator.py Cargo.lock -o cargo-sources.json
+
 echo "Done. Repo available at: ${REPO_DIR}"
 echo "To run without installing: flatpak-builder --run ${BUILD_DIR} ${MANIFEST} ${CMD}"
 echo "To install later: flatpak install --user --reinstall ${REPO_DIR} ${APP_ID}"
