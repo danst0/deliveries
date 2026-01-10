@@ -11,4 +11,3 @@ build-dir/
 test_tracking_numbers.txt
 .venv/
 cargo-sources.json
-flatpak-cargo-generator.py
