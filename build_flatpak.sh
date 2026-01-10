@@ -19,6 +19,11 @@ RUN_APP="${RUN:-0}"
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "${SCRIPT_DIR}"
 
+# Ensure REPO_DIR is absolute so flatpak install doesn't get confused
+if [[ "${REPO_DIR}" != /* ]]; then
+    REPO_DIR="${SCRIPT_DIR}/${REPO_DIR}"
+fi
+
 need() {
 	command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1" >&2; exit 1; }
 }
@@ -39,7 +44,7 @@ flatpak-builder \
 
 if [[ "${INSTALL}" == "1" ]]; then
 	echo "Installing ${APP_ID} to --user..."
-	flatpak install --user --reinstall "${REPO_DIR}" "${APP_ID}"
+	flatpak install --user --reinstall -y "${REPO_DIR}" "${APP_ID}"
 fi
 
 if [[ "${RUN_APP}" == "1" ]]; then

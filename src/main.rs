@@ -1,7 +1,8 @@
 mod dhl;
+mod hermes;
 
 use async_channel::Sender;
-use dhl::{fetch_tracking_events, TrackingEvent};
+use dhl::TrackingEvent;
 use gtk4::glib::{self, clone, ControlFlow};
 use gtk4::prelude::*;
 use gtk4::{
@@ -274,7 +275,12 @@ fn refresh_all_items(state: &SharedState, sender: &Sender<LookupMessage>) -> usi
 fn start_lookup_for_code(code: String, sender: &Sender<LookupMessage>) {
     let sender = sender.clone();
     thread::spawn(move || {
-        let result = fetch_tracking_events(&code).map_err(|e| e.to_string());
+        let result = if code.starts_with('H') {
+            hermes::fetch_tracking_events(&code)
+        } else {
+            dhl::fetch_tracking_events(&code)
+        }
+        .map_err(|e| e.to_string());
         let _ = sender.send_blocking(LookupMessage { code: code.clone(), result });
     });
 }
