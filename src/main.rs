@@ -4,14 +4,23 @@ use async_channel::Sender;
 use dhl::{fetch_tracking_events, TrackingEvent};
 use gtk4::glib::{self, clone, ControlFlow};
 use gtk4::prelude::*;
-use gtk4::{Application, ApplicationWindow, Button, Entry, Label, ListBox, ListBoxRow, Orientation, ScrolledWindow};
+use gtk4::{
+    Application, ApplicationWindow, Button, CallbackAction, Entry, Label, ListBox, ListBoxRow,
+    Orientation, ScrolledWindow, Shortcut, ShortcutController, ShortcutTrigger,
+};
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::fs;
 use std::rc::Rc;
 use std::thread;
 
-#[derive(Clone, Debug)]
+const DATA_FILE: &str = "deliveries.json";
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct TrackingItem {
     code: String,
+    #[serde(default)]
+    name: Option<String>,
     events: Vec<TrackingEvent>,
     last_status: String,
 }
@@ -36,10 +45,29 @@ fn main() {
 fn build_ui(app: &Application) {
     let window = ApplicationWindow::builder()
         .application(app)
-        .title("DHL Deliveries")
+        .title("Deliveries")
         .default_width(520)
         .default_height(480)
         .build();
+
+    let controller = ShortcutController::new();
+    let quit_shortcut = Shortcut::builder()
+        .trigger(&ShortcutTrigger::parse_string("<Control>q").unwrap())
+        .action(&CallbackAction::new(clone!(@weak app => @default-return false, move |_, _| {
+            app.quit();
+            true
+        })))
+        .build();
+    let close_shortcut = Shortcut::builder()
+        .trigger(&ShortcutTrigger::parse_string("<Control>w").unwrap())
+        .action(&CallbackAction::new(clone!(@weak window => @default-return false, move |_, _| {
+            window.close();
+            true
+        })))
+        .build();
+    controller.add_shortcut(quit_shortcut);
+    controller.add_shortcut(close_shortcut);
+    window.add_controller(controller);
 
     let container = gtk4::Box::new(Orientation::Vertical, 8);
     container.set_margin_top(12);
@@ -48,11 +76,26 @@ fn build_ui(app: &Application) {
     container.set_margin_end(12);
 
     let input_row = gtk4::Box::new(Orientation::Horizontal, 6);
+    let paste_button = Button::builder()
+        .icon_name("edit-paste-symbolic")
+        .tooltip_text("Paste from clipboard")
+        .build();
     let entry = Entry::builder()
-        .placeholder_text("Add DHL tracking number")
+        .placeholder_text("Add tracking number")
         .hexpand(true)
         .build();
+
+    paste_button.connect_clicked(clone!(@weak entry => move |_| {
+        let clipboard = entry.clipboard();
+        clipboard.read_text_async(None::<&gtk4::gio::Cancellable>, clone!(@weak entry => move |res| {
+            if let Ok(Some(text)) = res {
+                entry.set_text(text.as_str().trim());
+            }
+        }));
+    }));
+
     let add_button = Button::with_label("Add");
+    input_row.append(&paste_button);
     input_row.append(&entry);
     input_row.append(&add_button);
 
@@ -60,9 +103,10 @@ fn build_ui(app: &Application) {
         .icon_name("view-refresh-symbolic")
         .tooltip_text("Refresh all active tracking numbers")
         .build();
+    input_row.append(&refresh_all);
 
     let status_label = Label::builder()
-        .label("Enter a DHL tracking number to start.")
+        .label("Enter a tracking number to start.")
         .wrap(true)
         .xalign(0.0)
         .build();
@@ -76,32 +120,50 @@ fn build_ui(app: &Application) {
 
     container.append(&input_row);
     container.append(&status_label);
-    container.append(&refresh_all);
     container.append(&scrolled);
 
     window.set_child(Some(&container));
-    window.show();
+    window.present();
 
     let (sender, receiver) = async_channel::unbounded::<LookupMessage>();
-    let state: SharedState = Rc::new(RefCell::new(Vec::new()));
+    let state: SharedState = Rc::new(RefCell::new(load_from_file()));
 
-    let sender_clone = sender.clone();
-    let state_clone = Rc::clone(&state);
+    // Refresh all on startup
+    {
+        let _count = refresh_all_items(&state, &sender);
+    }
+    rebuild_list(&listbox, &state, &status_label, &sender);
+
+    let sender_for_add = sender.clone();
+    let state_for_add = Rc::clone(&state);
     add_button.connect_clicked(clone!(@weak entry, @weak status_label, @weak listbox => move |_| {
-        add_tracking_number(&entry, &status_label, &listbox, &sender_clone, &state_clone);
+        add_tracking_number(&entry, &status_label, &listbox, &sender_for_add, &state_for_add);
     }));
 
-    let sender_clone = sender.clone();
-    let state_clone = Rc::clone(&state);
+    let sender_for_entry = sender.clone();
+    let state_for_entry = Rc::clone(&state);
     entry.connect_activate(clone!(@weak entry, @weak status_label, @weak listbox => move |_| {
-        add_tracking_number(&entry, &status_label, &listbox, &sender_clone, &state_clone);
+        add_tracking_number(&entry, &status_label, &listbox, &sender_for_entry, &state_for_entry);
     }));
 
-    let sender_clone = sender.clone();
-    let state_clone = Rc::clone(&state);
+    let sender_for_refresh = sender.clone();
+    let state_for_refresh = Rc::clone(&state);
     refresh_all.connect_clicked(clone!(@weak status_label => move |_| {
-        let count = refresh_all_items(&state_clone, &sender_clone);
-        status_label.set_text(&format!("Refreshing {} tracking numbers...", count));
+        let _count = refresh_all_items(&state_for_refresh, &sender_for_refresh);
+    }));
+
+    let sender_row = sender.clone();
+    listbox.connect_row_activated(clone!(@weak state, @weak listbox as lb, @weak status_label => move |_lb, row| {
+        let index = row.index();
+        if index >= 0 {
+            let code = {
+                let items = state.borrow();
+                items.get(index as usize).map(|it| it.code.clone())
+            };
+            if let Some(code) = code {
+                show_detail_window(&state, code, &lb, &status_label, &sender_row);
+            }
+        }
     }));
 
     let state_for_task = Rc::clone(&state);
@@ -110,8 +172,7 @@ fn build_ui(app: &Application) {
         let state = state_for_task;
         let sender = sender_for_task;
         while let Ok(message) = receiver.recv().await {
-            let result_text = apply_lookup_message(&state, message);
-            status_label.set_text(&result_text);
+            let _result_text = apply_lookup_message(&state, message);
             rebuild_list(&listbox, &state, &status_label, &sender);
         }
     }));
@@ -151,14 +212,32 @@ fn add_tracking_number(entry: &Entry, status_label: &Label, listbox: &ListBox, s
         let mut items = state.borrow_mut();
         items.push(TrackingItem {
             code: code.clone(),
+            name: None,
             events: Vec::new(),
             last_status: "Pending first check...".to_string(),
         });
     }
 
+    save_to_file(state);
     rebuild_list(listbox, state, status_label, sender);
     start_lookup_for_code(code, sender);
     status_label.set_text("Fetching latest status...");
+}
+
+fn save_to_file(state: &SharedState) {
+    let items = state.borrow();
+    if let Ok(json) = serde_json::to_string_pretty(&*items) {
+        let _ = fs::write(DATA_FILE, json);
+    }
+}
+
+fn load_from_file() -> Vec<TrackingItem> {
+    if let Ok(data) = fs::read_to_string(DATA_FILE) {
+        if let Ok(items) = serde_json::from_str(&data) {
+            return items;
+        }
+    }
+    Vec::new()
 }
 
 fn refresh_all_items(state: &SharedState, sender: &Sender<LookupMessage>) -> usize {
@@ -178,23 +257,125 @@ fn start_lookup_for_code(code: String, sender: &Sender<LookupMessage>) {
 }
 
 fn apply_lookup_message(state: &SharedState, message: LookupMessage) -> String {
-    let mut items = state.borrow_mut();
-    if let Some(item) = items.iter_mut().find(|it| it.code == message.code) {
-        match message.result {
-            Ok(events) => {
-                item.events = events;
-                item.last_status = format!("{} events available", item.events.len());
-                format!("Updated {}", item.code)
+    let res = {
+        let mut items = state.borrow_mut();
+        if let Some(item) = items.iter_mut().find(|it| it.code == message.code) {
+            match message.result {
+                Ok(events) => {
+                    item.events = events;
+                    item.last_status = format!("{} events available", item.events.len());
+                    format!("Updated {}", item.code)
+                }
+                Err(err) => {
+                    item.events.clear();
+                    item.last_status = format!("Error: {}", err);
+                    format!("Error while updating {}", item.code)
+                }
             }
-            Err(err) => {
-                item.events.clear();
-                item.last_status = format!("Error: {}", err);
-                format!("Error while updating {}", item.code)
+        } else {
+            "Received update for an unknown tracking number".to_string()
+        }
+    };
+    save_to_file(state);
+    res
+}
+
+fn show_detail_window(state: &SharedState, code: String, listbox_main: &ListBox, status_label_main: &Label, sender: &Sender<LookupMessage>) {
+    let item_opt = state.borrow().iter().find(|it| it.code == code).cloned();
+    let Some(item) = item_opt else { return; };
+
+    let window = gtk4::Window::builder()
+        .title(format!("Details: {}", item.code))
+        .default_width(400)
+        .default_height(500)
+        .modal(true)
+        .build();
+
+    let controller = ShortcutController::new();
+    let close_shortcut = Shortcut::builder()
+        .trigger(&ShortcutTrigger::parse_string("<Control>w").unwrap())
+        .action(&CallbackAction::new(clone!(@weak window => @default-return false, move |_, _| {
+            window.close();
+            true
+        })))
+        .build();
+    controller.add_shortcut(close_shortcut);
+    window.add_controller(controller);
+
+    let container = gtk4::Box::new(Orientation::Vertical, 12);
+    container.set_margin_top(12);
+    container.set_margin_bottom(12);
+    container.set_margin_start(12);
+    container.set_margin_end(12);
+
+    let code_label = Label::builder()
+        .label(&format!("Tracking Number: {}", item.code))
+        .xalign(0.0)
+        .build();
+    code_label.add_css_class("title-4");
+
+    let name_label = Label::builder()
+        .label("Custom Name:")
+        .xalign(0.0)
+        .build();
+
+    let name_entry = Entry::builder()
+        .placeholder_text("Set a name for this item")
+        .text(item.name.as_deref().unwrap_or(""))
+        .build();
+
+    let save_btn = Button::with_label("Save Name");
+    
+    let history_label = Label::builder()
+        .label("Tracking History:")
+        .xalign(0.0)
+        .margin_top(12)
+        .build();
+    history_label.add_css_class("title-4");
+
+    let events_list = gtk4::Box::new(Orientation::Vertical, 6);
+    if item.events.is_empty() {
+        let placeholder = Label::builder()
+            .label("No raw status events available yet.")
+            .xalign(0.0)
+            .build();
+        events_list.append(&placeholder);
+    } else {
+        for ev in item.events.iter().rev() {
+            events_list.append(&event_row(ev));
+        }
+    }
+
+    let scrolled = ScrolledWindow::builder()
+        .child(&events_list)
+        .vexpand(true)
+        .build();
+
+    container.append(&code_label);
+    container.append(&name_label);
+    container.append(&name_entry);
+    container.append(&save_btn);
+    container.append(&history_label);
+    container.append(&scrolled);
+
+    let sender_save = sender.clone();
+    save_btn.connect_clicked(clone!(@weak window, @weak name_entry, @weak state, @weak listbox_main, @weak status_label_main => move |_| {
+        let new_name = name_entry.text().trim().to_string();
+        let name_opt = if new_name.is_empty() { None } else { Some(new_name) };
+        
+        {
+            let mut items = state.borrow_mut();
+            if let Some(it) = items.iter_mut().find(|it| it.code == code) {
+                it.name = name_opt;
             }
         }
-    } else {
-        "Received update for an unknown tracking number".to_string()
-    }
+        save_to_file(&state);
+        rebuild_list(&listbox_main, &state, &status_label_main, &sender_save);
+        window.close();
+    }));
+
+    window.set_child(Some(&container));
+    window.present();
 }
 
 fn rebuild_list(listbox: &ListBox, state: &SharedState, status_label: &Label, sender: &Sender<LookupMessage>) {
@@ -221,66 +402,53 @@ fn rebuild_list(listbox: &ListBox, state: &SharedState, status_label: &Label, se
 }
 
 fn tracking_row(item: &TrackingItem, state: &SharedState, status_label: &Label, sender: &Sender<LookupMessage>, listbox: &ListBox) -> ListBoxRow {
-    let code_label = Label::builder()
-        .label(format!("{}", item.code))
+    let display_name = item.name.as_deref().unwrap_or(&item.code);
+    let name_label = Label::builder()
+        .label(display_name)
         .xalign(0.0)
-        .wrap(true)
         .build();
-    code_label.add_css_class("title-4");
+    name_label.add_css_class("title-4");
+
+    let latest_status = item.events.last()
+        .map(|ev| ev.description.clone())
+        .unwrap_or_else(|| item.last_status.clone());
 
     let status = Label::builder()
-        .label(item.last_status.clone())
+        .label(&latest_status)
         .xalign(0.0)
         .wrap(true)
         .build();
     status.add_css_class("dim-label");
+    status.add_css_class("caption");
 
-    let header = gtk4::Box::new(Orientation::Horizontal, 6);
+    let header = gtk4::Box::new(Orientation::Vertical, 2);
     header.set_hexpand(true);
-    header.append(&code_label);
+    header.append(&name_label);
+    header.append(&status);
 
-    let refresh_btn = Button::builder()
-        .icon_name("view-refresh-symbolic")
-        .tooltip_text("Refresh this tracking number now")
+    let archive_btn = Button::builder()
+        .icon_name("user-trash-symbolic")
+        .tooltip_text("Archive/Remove")
         .build();
-    let code_clone = item.code.clone();
-    let sender_clone = sender.clone();
-    refresh_btn.connect_clicked(clone!(@weak status_label => move |_| {
-        status_label.set_text(&format!("Refreshing {}...", code_clone));
-        start_lookup_for_code(code_clone.clone(), &sender_clone);
-    }));
-    header.append(&refresh_btn);
-
-    let archive_btn = Button::with_label("Archive");
     let code_clone = item.code.clone();
     let state_clone = Rc::clone(state);
     let sender_clone = sender.clone();
     archive_btn.connect_clicked(clone!(@weak listbox, @weak status_label => move |_| {
         archive_tracking(&code_clone, &state_clone);
-        status_label.set_text(&format!("Archived {}", code_clone));
         rebuild_list(&listbox, &state_clone, &status_label, &sender_clone);
     }));
-    header.append(&archive_btn);
 
-    let body = gtk4::Box::new(Orientation::Vertical, 4);
-    body.append(&status);
+    let actions = gtk4::Box::new(Orientation::Horizontal, 4);
+    actions.set_valign(gtk4::Align::Center);
+    actions.append(&archive_btn);
 
-    if item.events.is_empty() {
-        let placeholder = Label::builder()
-            .label("No events yet.")
-            .xalign(0.0)
-            .wrap(true)
-            .build();
-        body.append(&placeholder);
-    } else {
-        for ev in &item.events {
-            body.append(&event_row(ev));
-        }
-    }
-
-    let row_box = gtk4::Box::new(Orientation::Vertical, 8);
+    let row_box = gtk4::Box::new(Orientation::Horizontal, 8);
+    row_box.set_margin_top(4);
+    row_box.set_margin_bottom(4);
+    row_box.set_margin_start(8);
+    row_box.set_margin_end(8);
     row_box.append(&header);
-    row_box.append(&body);
+    row_box.append(&actions);
 
     let row = ListBoxRow::new();
     row.set_child(Some(&row_box));
@@ -292,6 +460,8 @@ fn archive_tracking(code: &str, state: &SharedState) {
     if let Some(pos) = items.iter().position(|it| it.code == code) {
         items.remove(pos);
     }
+    drop(items);
+    save_to_file(state);
 }
 
 fn event_row(event: &TrackingEvent) -> gtk4::Box {

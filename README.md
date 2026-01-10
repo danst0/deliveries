@@ -1,6 +1,6 @@
-# DHL Delivery Tracker (GTK4)
+# Delivery Tracker (GTK4)
 
-A small Rust + GTK4 desktop app to check DHL shipment status in Germany by scraping the public tracking page.
+A small Rust + GTK4 desktop app to check shipment status by scraping public tracking pages.
 
 ## Prerequisites
 - Rust toolchain (https://rustup.rs)

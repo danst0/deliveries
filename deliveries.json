@@ -1,0 +1,66 @@
+[
+  {
+    "code": "00340434510093913953",
+    "name": "Völkner",
+    "events": [
+      {
+        "timestamp": "2026-01-08T15:49:00+01:00",
+        "location": "Location not available",
+        "description": "Die Sendung wurde elektronisch angekündigt. Sobald die Sendung von uns bearbeitet wurde, erhalten Sie weitere Informationen."
+      },
+      {
+        "timestamp": "2026-01-08T16:04:00+01:00",
+        "location": "Location not available",
+        "description": "Für diese Sendung wurde ein Ablageort oder Nachbar als Empfangsoption vorgemerkt."
+      },
+      {
+        "timestamp": "2026-01-08T18:26:00+01:00",
+        "location": "Location not available",
+        "description": "Die Sendung wurde im Briefzentrum bearbeitet."
+      },
+      {
+        "timestamp": "2026-01-09T13:10:00+01:00",
+        "location": "Location not available",
+        "description": "Die Sendung wurde im Briefzentrum bearbeitet."
+      },
+      {
+        "timestamp": "2026-01-10T08:32:00+01:00",
+        "location": "Location not available",
+        "description": "Die Sendung wurde in das Zustellfahrzeug geladen. Die Zustellung erfolgt voraussichtlich heute."
+      }
+    ],
+    "last_status": "5 events available"
+  },
+  {
+    "code": "00340434615424501387",
+    "name": "Router?",
+    "events": [
+      {
+        "timestamp": "2026-01-05T11:00:00+01:00",
+        "location": "Location not available",
+        "description": "Die Sendung wurde elektronisch angekündigt. Sobald die Sendung von uns bearbeitet wurde, erhalten Sie weitere Informationen."
+      },
+      {
+        "timestamp": "2026-01-05T11:02:00+01:00",
+        "location": "Location not available",
+        "description": "Für diese Sendung wurde ein Ablageort oder Nachbar als Empfangsoption vorgemerkt."
+      },
+      {
+        "timestamp": "2026-01-09T18:17:00+01:00",
+        "location": "Location not available",
+        "description": "Die Sendung wurde von DHL bearbeitet und wird für den Weitertransport in die Region des Empfängers vorbereitet."
+      },
+      {
+        "timestamp": "2026-01-09T23:33:00+01:00",
+        "location": "Location not available",
+        "description": "Die Sendung ist in der Region des Empfängers angekommen und wird im nächsten Schritt zur Zustellbasis transportiert."
+      },
+      {
+        "timestamp": "2026-01-10T08:51:00+01:00",
+        "location": "Location not available",
+        "description": "Die Sendung wurde in das Zustellfahrzeug geladen. Die Zustellung erfolgt voraussichtlich heute."
+      }
+    ],
+    "last_status": "5 events available"
+  }
+]

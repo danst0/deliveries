@@ -1,11 +1,11 @@
 use anyhow::{anyhow, bail, Context, Result};
 use headless_chrome::Browser;
 use reqwest::blocking::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrackingEvent {
     pub timestamp: String,
     pub location: String,
