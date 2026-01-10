@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.example.deliveries</id>
+  <id>me.dumke.deliveries</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>Deliveries</name>
@@ -15,11 +15,14 @@
       carriers will be added in future updates.
     </p>
   </description>
-  <launchable type="desktop-id">com.example.deliveries.desktop</launchable>
+  <launchable type="desktop-id">me.dumke.deliveries.desktop</launchable>
   <screenshots>
     <screenshot type="default">
       <caption>Main application window</caption>
       <image>https://raw.githubusercontent.com/danst/deliveries-tracker/main/screenshots/main_app.png</image>
     </screenshot>
   </screenshots>
+  <releases>
+    <release version="0.2.4" date="2026-01-10" />
+  </releases>
 </component>
