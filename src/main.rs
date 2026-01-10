@@ -192,7 +192,10 @@ fn build_ui(app: &Application) {
             let _result_text = apply_lookup_message(&state, message);
             rebuild_list(&listbox, &state, &status_label, &sender);
             if receiver.is_empty() {
-                status_label.set_text("");
+                glib::timeout_add_seconds_local(5, clone!(@weak status_label => @default-return ControlFlow::Break, move || {
+                    status_label.set_text("");
+                    ControlFlow::Break
+                }));
             }
         }
     }));
