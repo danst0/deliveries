@@ -44,7 +44,7 @@ type SharedState = Rc<RefCell<Vec<TrackingItem>>>;
 
 fn main() {
     let app = Application::builder()
-        .application_id("com.example.deliveries")
+        .application_id("me.dumke.deliveries")
         .build();
 
     app.connect_activate(build_ui);
