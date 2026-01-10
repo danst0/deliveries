@@ -5,6 +5,10 @@ sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
 command: deliveries_tracker
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/deliveries/cargo-home
 finish-args:
   - --share=network
   - --share=ipc
@@ -16,7 +20,7 @@ modules:
   - name: deliveries
     buildsystem: simple
     build-commands:
-      - . /usr/lib/sdk/rust-stable/enable && cargo build --release
+      - cargo build --release
       - install -Dm755 target/release/deliveries_tracker /app/bin/deliveries_tracker
       - install -Dm644 data/com.example.deliveries.desktop /app/share/applications/com.example.deliveries.desktop
       - install -Dm644 data/com.example.deliveries.metainfo.xml /app/share/metainfo/com.example.deliveries.metainfo.xml
