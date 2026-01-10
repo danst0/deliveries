@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Deliveries
+Exec=deliveries_tracker
+Terminal=false
+Type=Application
+Icon=com.example.deliveries
+Categories=Utility;GTK;
+Comment=Track your DHL shipments
+StartupWMClass=deliveries_tracker
