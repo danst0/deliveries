@@ -115,10 +115,12 @@ fn build_ui(app: &Application) {
     input_row.append(&refresh_all);
 
     let status_label = Label::builder()
-        .label("Enter a tracking number to start.")
+        .label("")
         .wrap(true)
         .xalign(0.0)
+        .margin_top(6)
         .build();
+    status_label.add_css_class("dim-label");
 
     let listbox = ListBox::new();
     listbox.set_vexpand(true);
@@ -128,8 +130,8 @@ fn build_ui(app: &Application) {
         .build();
 
     container.append(&input_row);
-    container.append(&status_label);
     container.append(&scrolled);
+    container.append(&status_label);
 
     window.set_child(Some(&container));
     window.present();
@@ -139,7 +141,10 @@ fn build_ui(app: &Application) {
 
     // Refresh all on startup
     {
-        let _count = refresh_all_items(&state, &sender);
+        let count = refresh_all_items(&state, &sender);
+        if count > 0 {
+            status_label.set_text(&format!("Refreshing {} items...", count));
+        }
     }
     rebuild_list(&listbox, &state, &status_label, &sender);
 
@@ -158,7 +163,10 @@ fn build_ui(app: &Application) {
     let sender_for_refresh = sender.clone();
     let state_for_refresh = Rc::clone(&state);
     refresh_all.connect_clicked(clone!(@weak status_label => move |_| {
-        let _count = refresh_all_items(&state_for_refresh, &sender_for_refresh);
+        let count = refresh_all_items(&state_for_refresh, &sender_for_refresh);
+        if count > 0 {
+            status_label.set_text(&format!("Refreshing {} items...", count));
+        }
     }));
 
     let sender_row = sender.clone();
@@ -183,6 +191,9 @@ fn build_ui(app: &Application) {
         while let Ok(message) = receiver.recv().await {
             let _result_text = apply_lookup_message(&state, message);
             rebuild_list(&listbox, &state, &status_label, &sender);
+            if receiver.is_empty() {
+                status_label.set_text("");
+            }
         }
     }));
 
