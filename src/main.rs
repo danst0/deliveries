@@ -11,10 +11,19 @@ use gtk4::{
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::fs;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::thread;
 
-const DATA_FILE: &str = "deliveries.json";
+fn get_data_file() -> PathBuf {
+    let mut path = glib::user_data_dir();
+    path.push("deliveries-tracker");
+    if !path.exists() {
+        let _ = fs::create_dir_all(&path);
+    }
+    path.push("deliveries.json");
+    path
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct TrackingItem {
@@ -227,12 +236,12 @@ fn add_tracking_number(entry: &Entry, status_label: &Label, listbox: &ListBox, s
 fn save_to_file(state: &SharedState) {
     let items = state.borrow();
     if let Ok(json) = serde_json::to_string_pretty(&*items) {
-        let _ = fs::write(DATA_FILE, json);
+        let _ = fs::write(get_data_file(), json);
     }
 }
 
 fn load_from_file() -> Vec<TrackingItem> {
-    if let Ok(data) = fs::read_to_string(DATA_FILE) {
+    if let Ok(data) = fs::read_to_string(get_data_file()) {
         if let Ok(items) = serde_json::from_str(&data) {
             return items;
         }
@@ -314,18 +323,11 @@ fn show_detail_window(state: &SharedState, code: String, listbox_main: &ListBox,
         .build();
     code_label.add_css_class("title-4");
 
-    let name_label = Label::builder()
-        .label("Custom Name:")
-        .xalign(0.0)
-        .build();
-
     let name_entry = Entry::builder()
-        .placeholder_text("Set a name for this item")
+        .placeholder_text("custom name")
         .text(item.name.as_deref().unwrap_or(""))
         .build();
 
-    let save_btn = Button::with_label("Save Name");
-    
     let history_label = Label::builder()
         .label("Tracking History:")
         .xalign(0.0)
@@ -352,14 +354,12 @@ fn show_detail_window(state: &SharedState, code: String, listbox_main: &ListBox,
         .build();
 
     container.append(&code_label);
-    container.append(&name_label);
     container.append(&name_entry);
-    container.append(&save_btn);
     container.append(&history_label);
     container.append(&scrolled);
 
     let sender_save = sender.clone();
-    save_btn.connect_clicked(clone!(@weak window, @weak name_entry, @weak state, @weak listbox_main, @weak status_label_main => move |_| {
+    name_entry.connect_changed(clone!(@weak name_entry, @weak state, @weak listbox_main, @weak status_label_main => move |_| {
         let new_name = name_entry.text().trim().to_string();
         let name_opt = if new_name.is_empty() { None } else { Some(new_name) };
         
@@ -371,7 +371,6 @@ fn show_detail_window(state: &SharedState, code: String, listbox_main: &ListBox,
         }
         save_to_file(&state);
         rebuild_list(&listbox_main, &state, &status_label_main, &sender_save);
-        window.close();
     }));
 
     window.set_child(Some(&container));
