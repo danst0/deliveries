@@ -2,7 +2,7 @@ mod dhl;
 
 use async_channel::Sender;
 use dhl::{fetch_tracking_events, TrackingEvent};
-use gtk4::glib::{self, clone, Continue};
+use gtk4::glib::{self, clone, ControlFlow};
 use gtk4::prelude::*;
 use gtk4::{Application, ApplicationWindow, Button, Entry, Label, ListBox, ListBoxRow, Orientation, ScrolledWindow};
 use std::cell::RefCell;
@@ -104,7 +104,11 @@ fn build_ui(app: &Application) {
         status_label.set_text(&format!("Refreshing {} tracking numbers...", count));
     }));
 
-    glib::MainContext::default().spawn_local(clone!(@weak status_label, @weak listbox => @strong state, @strong sender => async move {
+    let state_for_task = Rc::clone(&state);
+    let sender_for_task = sender.clone();
+    glib::MainContext::default().spawn_local(clone!(@weak status_label, @weak listbox => async move {
+        let state = state_for_task;
+        let sender = sender_for_task;
         while let Ok(message) = receiver.recv().await {
             let result_text = apply_lookup_message(&state, message);
             status_label.set_text(&result_text);
@@ -112,13 +116,18 @@ fn build_ui(app: &Application) {
         }
     }));
 
-    glib::timeout_add_seconds_local(3600, clone!(@weak status_label => @strong state, @strong sender => @default-return Continue(false) {
-        let count = refresh_all_items(&state, &sender);
+    let status_label_weak = status_label.downgrade();
+    let state_timer = Rc::clone(&state);
+    let sender_timer = sender.clone();
+    glib::timeout_add_seconds_local(3600, move || {
+        let count = refresh_all_items(&state_timer, &sender_timer);
         if count > 0 {
-            status_label.set_text(&format!("Automatic refresh for {} tracking numbers...", count));
+            if let Some(label) = status_label_weak.upgrade() {
+                label.set_text(&format!("Automatic refresh for {} tracking numbers...", count));
+            }
         }
-        Continue(true)
-    }));
+        ControlFlow::Continue
+    });
 }
 
 fn add_tracking_number(entry: &Entry, status_label: &Label, listbox: &ListBox, sender: &Sender<LookupMessage>, state: &SharedState) {
