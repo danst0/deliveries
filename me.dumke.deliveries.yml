@@ -28,7 +28,7 @@ modules:
       - cargo-sources.json
       - type: git
         url: https://github.com/danst0/deliveries.git
-        tag: v0.3.3
+        tag: v0.3.4
       - type: shell
         commands:
           - mkdir -p .cargo

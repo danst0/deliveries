@@ -4,7 +4,9 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>CC-BY-SA-4.0</project_license>
   <name>Deliveries</name>
-  <developer_name>Dr. Daniel Dumke</developer_name>
+  <developer id="me.dumke">
+    <name>Dr. Daniel Dumke</name>
+  </developer>
   <summary>DHL Shipment Tracker</summary>
   <description>
     <p>
@@ -26,9 +28,32 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.3.4" date="2026-08-27">
+      <description>
+        <p>Reliability fixes.</p>
+        <ul>
+          <li>Hermes tracking is disabled until it can be verified against a live shipment</li>
+          <li>Reports a clear error instead of crashing when no browser is available</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.3.3" date="2026-08-27">
+      <description>
+        <p>Postcode lookup for DHL, more shipment detail, and a Wayland fix.</p>
+        <ul>
+          <li>Enter the recipient postcode to unlock details DHL withholds</li>
+          <li>Shows delivery window, progress and short status</li>
+          <li>Fixes a modal detail window that could block input on Wayland</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.3.2" date="2026-01-10" />
+    <release version="0.3.1" date="2026-01-10" />
+    <release version="0.3.0" date="2026-01-10" />
+    <release version="0.2.9" date="2026-01-10" />
     <release version="0.2.8" date="2026-01-10" />
     <release version="0.2.7" date="2026-01-10" />
+    <release version="0.2.6" date="2026-01-10" />
     <release version="0.2.5" date="2026-01-10" />
-    <release version="0.2.4" date="2026-01-10" />
   </releases>
 </component>

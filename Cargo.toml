@@ -1,6 +1,6 @@
 [package]
 name = "deliveries_tracker"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2024"
 license = "CC-BY-SA-4.0"
 default-run = "deliveries_tracker"

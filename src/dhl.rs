@@ -350,8 +350,9 @@ fn common_headers() -> HeaderMap {
     headers
 }
 
-/// `Browser::default()` panics instead of erroring when it cannot auto-detect Chrome,
-/// so try the known binaries first and keep auto-detection behind a catch_unwind.
+/// `Browser::default()` panics when it cannot auto-detect Chrome, because it unwraps
+/// the lookup. Going through `Browser::new` with an unset path resolves the executable
+/// via `Process::new`, which reports the same failure as a plain error.
 pub(crate) fn build_browser() -> Result<Browser> {
     let candidates = [
         "/usr/bin/google-chrome",
@@ -379,9 +380,18 @@ pub(crate) fn build_browser() -> Result<Browser> {
         }
     }
 
-    std::panic::catch_unwind(Browser::default)
-        .map_err(|_| anyhow!("no usable Chrome/Chromium binary found"))?
-        .map_err(|e| anyhow!("Failed to launch headless Chrome: {}", e))
+    let mut builder = LaunchOptionsBuilder::default();
+    builder.sandbox(false);
+    let options = builder
+        .build()
+        .map_err(|e| anyhow!("Failed to assemble Chrome launch options: {}", e))?;
+
+    Browser::new(options).map_err(|e| {
+        anyhow!(
+            "no usable Chrome/Chromium binary found (is Chrome/Chromium installed?): {}",
+            e
+        )
+    })
 }
 
 fn fetch_via_headless(tracking_id: &str) -> Result<TrackingDetails> {

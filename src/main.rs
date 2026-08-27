@@ -1,4 +1,7 @@
 mod dhl;
+// Reachable through the check_hermes helper binary, but deliberately not wired
+// into the app: the HTTP path is unverified against a live shipment.
+#[allow(dead_code)]
 mod hermes;
 
 use async_channel::Sender;
@@ -287,14 +290,10 @@ fn start_lookup_for_code(code: String, zip: Option<String>, sender: &Sender<Look
     let sender = sender.clone();
     thread::spawn(move || {
         let result = if code.starts_with('H') {
-            hermes::fetch_tracking_events(&code).map(|events| TrackingDetails {
-                events,
-                ..Default::default()
-            })
+            Err("Hermes tracking is not available in this release".to_string())
         } else {
-            dhl::fetch_tracking_events(&code, zip.as_deref())
-        }
-        .map_err(|e| e.to_string());
+            dhl::fetch_tracking_events(&code, zip.as_deref()).map_err(|e| e.to_string())
+        };
         let _ = sender.send_blocking(LookupMessage { code, result });
     });
 }
