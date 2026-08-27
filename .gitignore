@@ -9,6 +9,7 @@ cargo-home/
 build-dir/
 .flatpak-builder/
 test_tracking_numbers.txt
+test_hermes_number.txt
 .venv/
 cargo-sources.json
 flatpak-cargo-generator.py

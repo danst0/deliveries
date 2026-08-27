@@ -2,7 +2,7 @@ mod dhl;
 mod hermes;
 
 use async_channel::Sender;
-use dhl::TrackingEvent;
+use dhl::{TrackingDetails, TrackingEvent};
 use gtk4::glib::{self, clone, ControlFlow};
 use gtk4::prelude::*;
 use gtk4::{
@@ -31,14 +31,19 @@ struct TrackingItem {
     code: String,
     #[serde(default)]
     name: Option<String>,
+    /// Recipient postcode; DHL releases the uncensored detail view in exchange for it.
+    #[serde(default)]
+    zip: Option<String>,
     events: Vec<TrackingEvent>,
     last_status: String,
+    #[serde(default)]
+    plz_required: bool,
 }
 
 #[derive(Debug)]
 struct LookupMessage {
     code: String,
-    result: Result<Vec<TrackingEvent>, String>,
+    result: Result<TrackingDetails, String>,
 }
 
 type SharedState = Rc<RefCell<Vec<TrackingItem>>>;
@@ -237,14 +242,16 @@ fn add_tracking_number(entry: &Entry, status_label: &Label, listbox: &ListBox, s
         items.push(TrackingItem {
             code: code.clone(),
             name: None,
+            zip: None,
             events: Vec::new(),
             last_status: "Pending first check...".to_string(),
+            plz_required: false,
         });
     }
 
     save_to_file(state);
     rebuild_list(listbox, state, status_label, sender);
-    start_lookup_for_code(code, sender);
+    start_lookup_for_code(code, None, sender);
     status_label.set_text("Fetching latest status...");
 }
 
@@ -265,23 +272,30 @@ fn load_from_file() -> Vec<TrackingItem> {
 }
 
 fn refresh_all_items(state: &SharedState, sender: &Sender<LookupMessage>) -> usize {
-    let codes: Vec<String> = state.borrow().iter().map(|it| it.code.clone()).collect();
-    for code in &codes {
-        start_lookup_for_code(code.clone(), sender);
+    let items: Vec<(String, Option<String>)> = state
+        .borrow()
+        .iter()
+        .map(|it| (it.code.clone(), it.zip.clone()))
+        .collect();
+    for (code, zip) in &items {
+        start_lookup_for_code(code.clone(), zip.clone(), sender);
     }
-    codes.len()
+    items.len()
 }
 
-fn start_lookup_for_code(code: String, sender: &Sender<LookupMessage>) {
+fn start_lookup_for_code(code: String, zip: Option<String>, sender: &Sender<LookupMessage>) {
     let sender = sender.clone();
     thread::spawn(move || {
         let result = if code.starts_with('H') {
-            hermes::fetch_tracking_events(&code)
+            hermes::fetch_tracking_events(&code).map(|events| TrackingDetails {
+                events,
+                ..Default::default()
+            })
         } else {
-            dhl::fetch_tracking_events(&code)
+            dhl::fetch_tracking_events(&code, zip.as_deref())
         }
         .map_err(|e| e.to_string());
-        let _ = sender.send_blocking(LookupMessage { code: code.clone(), result });
+        let _ = sender.send_blocking(LookupMessage { code, result });
     });
 }
 
@@ -290,9 +304,10 @@ fn apply_lookup_message(state: &SharedState, message: LookupMessage) -> String {
         let mut items = state.borrow_mut();
         if let Some(item) = items.iter_mut().find(|it| it.code == message.code) {
             match message.result {
-                Ok(events) => {
-                    item.events = events;
-                    item.last_status = format!("{} events available", item.events.len());
+                Ok(mut details) => {
+                    item.plz_required = details.censored || details.plz_required;
+                    item.events = std::mem::take(&mut details.events);
+                    item.last_status = summarize(item, &details);
                     format!("Updated {}", item.code)
                 }
                 Err(err) => {
@@ -309,16 +324,69 @@ fn apply_lookup_message(state: &SharedState, message: LookupMessage) -> String {
     res
 }
 
+/// Condense what DHL reported into the single line shown under the shipment name.
+fn summarize(item: &TrackingItem, details: &TrackingDetails) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(status) = details.short_status.as_deref() {
+        parts.push(status.to_string());
+    } else if details.delivered {
+        parts.push("Delivered".to_string());
+    }
+
+    if let Some((step, total)) = details.progress {
+        parts.push(format!("step {}/{}", step, total));
+    }
+
+    if let Some((from, to)) = details.delivery_window.as_ref() {
+        parts.push(if from == to {
+            format!("delivery {}", from)
+        } else {
+            format!("delivery {} - {}", from, to)
+        });
+    }
+
+    if details.versanddatum_required && item.events.is_empty() {
+        parts.push("shipping date required".to_string());
+    } else if item.plz_required {
+        parts.push(match item.zip.as_deref() {
+            Some(_) => "postcode did not unlock more".to_string(),
+            None => "enter recipient postcode for more".to_string(),
+        });
+    }
+
+    if let Some(err) = details.zip_error.as_deref() {
+        parts.push(format!("postcode rejected: {}", err));
+    }
+
+    if parts.is_empty() {
+        return format!("{} events available", item.events.len());
+    }
+
+    format!("{} ({} events)", parts.join(" - "), item.events.len())
+}
+
 fn show_detail_window(state: &SharedState, code: String, listbox_main: &ListBox, status_label_main: &Label, sender: &Sender<LookupMessage>) {
     let item_opt = state.borrow().iter().find(|it| it.code == code).cloned();
     let Some(item) = item_opt else { return; };
+
+    // A modal window without a transient parent blocks input on the main window while
+    // the compositor is free to stack the modal behind it, which reads as a frozen app.
+    let parent = listbox_main
+        .root()
+        .and_then(|root| root.downcast::<gtk4::Window>().ok());
 
     let window = gtk4::Window::builder()
         .title(format!("Details: {}", item.code))
         .default_width(400)
         .default_height(500)
         .modal(true)
+        .destroy_with_parent(true)
         .build();
+
+    if let Some(parent) = parent.as_ref() {
+        window.set_transient_for(Some(parent));
+    }
 
     let controller = ShortcutController::new();
     let close_shortcut = Shortcut::builder()
@@ -348,6 +416,24 @@ fn show_detail_window(state: &SharedState, code: String, listbox_main: &ListBox,
         .text(item.name.as_deref().unwrap_or(""))
         .build();
 
+    let zip_entry = Entry::builder()
+        .placeholder_text("Recipient postcode - press Enter to look up")
+        .text(item.zip.as_deref().unwrap_or(""))
+        .max_length(5)
+        .build();
+
+    let zip_hint = Label::builder()
+        .label(if item.plz_required {
+            "DHL withholds details for this shipment until you enter the recipient postcode."
+        } else {
+            "DHL reports nothing withheld here, so a postcode adds nothing."
+        })
+        .xalign(0.0)
+        .wrap(true)
+        .build();
+    zip_hint.add_css_class("dim-label");
+    zip_hint.add_css_class("caption");
+
     let history_label = Label::builder()
         .label("Tracking History:")
         .xalign(0.0)
@@ -375,8 +461,36 @@ fn show_detail_window(state: &SharedState, code: String, listbox_main: &ListBox,
 
     container.append(&code_label);
     container.append(&name_entry);
+    container.append(&zip_entry);
+    container.append(&zip_hint);
     container.append(&history_label);
     container.append(&scrolled);
+
+    let code_for_zip = code.clone();
+    zip_entry.connect_changed(clone!(@weak zip_entry, @weak state => move |_| {
+        let raw = zip_entry.text().trim().to_string();
+        let zip_opt = if raw.is_empty() { None } else { Some(raw) };
+
+        {
+            let mut items = state.borrow_mut();
+            if let Some(it) = items.iter_mut().find(|it| it.code == code_for_zip) {
+                it.zip = zip_opt;
+            }
+        }
+        save_to_file(&state);
+    }));
+
+    let sender_zip = sender.clone();
+    let code_for_lookup = code.clone();
+    zip_entry.connect_activate(clone!(@weak status_label_main => move |entry| {
+        let zip = entry.text().trim().to_string();
+        if zip.is_empty() {
+            status_label_main.set_text("Enter a postcode first.");
+            return;
+        }
+        start_lookup_for_code(code_for_lookup.clone(), Some(zip), &sender_zip);
+        status_label_main.set_text("Fetching details with postcode...");
+    }));
 
     let sender_save = sender.clone();
     name_entry.connect_changed(clone!(@weak name_entry, @weak state, @weak listbox_main, @weak status_label_main => move |_| {
