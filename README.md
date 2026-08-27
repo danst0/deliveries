@@ -23,3 +23,6 @@ Then add DHL tracking numbers and use the refresh icon to update all of them.
 - This uses HTML scraping of `https://nolp.dhl.de/nextt-online-public/report?lang=en&id=<tracking>` and may break if DHL changes markup.
 - Network requests run off the UI thread; failures are shown in the status line.
 - No credentials are required; if DHL introduces rate limits or bot protection, requests may fail.
+
+## License
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). See [LICENSE](LICENSE).

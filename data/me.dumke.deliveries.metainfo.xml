@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>me.dumke.deliveries</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>CC-BY-SA-4.0</project_license>
+  <project_license>AGPL-3.0-or-later</project_license>
   <name>Deliveries</name>
   <developer id="me.dumke">
     <name>Dr. Daniel Dumke</name>
@@ -28,6 +28,11 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.3.5" date="2026-08-27">
+      <description>
+        <p>Relicensed under the GNU Affero General Public License v3.0 or later.</p>
+      </description>
+    </release>
     <release version="0.3.4" date="2026-08-27">
       <description>
         <p>Reliability fixes.</p>

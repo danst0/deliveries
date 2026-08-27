@@ -1,8 +1,8 @@
 [package]
 name = "deliveries_tracker"
-version = "0.3.4"
+version = "0.3.5"
 edition = "2024"
-license = "CC-BY-SA-4.0"
+license = "AGPL-3.0-or-later"
 default-run = "deliveries_tracker"
 
 [dependencies]
