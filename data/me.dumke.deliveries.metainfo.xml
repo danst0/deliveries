@@ -28,6 +28,14 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.3.6" date="2026-08-28">
+      <description>
+        <p>Fixes the browser fallback used when the tracking API fails.</p>
+        <ul>
+          <li>No longer tries to drive a sandboxed browser, which could hang and leave stray processes behind</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.5" date="2026-08-27">
       <description>
         <p>Relicensed under the GNU Affero General Public License v3.0 or later.</p>

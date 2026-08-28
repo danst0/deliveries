@@ -354,14 +354,15 @@ fn common_headers() -> HeaderMap {
 /// the lookup. Going through `Browser::new` with an unset path resolves the executable
 /// via `Process::new`, which reports the same failure as a plain error.
 pub(crate) fn build_browser() -> Result<Browser> {
+    // Native binaries only. A Flatpak-exported browser keeps its remote-debugging
+    // port inside its own sandbox, so the launch never connects: the call blocks and
+    // leaves a stray browser process tree behind.
     let candidates = [
         "/usr/bin/google-chrome",
         "/usr/bin/google-chrome-stable",
         "/usr/bin/chromium",
         "/usr/bin/chromium-browser",
-        "/var/lib/flatpak/exports/bin/com.vivaldi.Vivaldi",
-        "/var/lib/flatpak/exports/bin/org.chromium.Chromium",
-        "/var/lib/flatpak/exports/bin/com.google.Chrome",
+        "/usr/bin/chromium-freeworld",
     ];
 
     for candidate in candidates {
